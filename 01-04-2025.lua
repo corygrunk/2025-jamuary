@@ -126,7 +126,7 @@ function g.key(x,y,z)
 
   end
 
-  screen_dirty = true
+  grid_redraw()
 end
 
 function grid_redraw()
@@ -159,11 +159,17 @@ function key(n,z)
     if glitch then glitch_off() else glitch_on()
     end
   elseif n == 3 and z == 1 then
-    if playing then 
-      playing = false
+    if alt_mode then
+      steps = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
+      counter = 1
+      grid_redraw()
     else
-      counter = 0
-      playing = true
+      if playing then 
+        playing = false
+      else
+        counter = 0
+        playing = true
+      end
     end
   end
   screen_dirty = true
