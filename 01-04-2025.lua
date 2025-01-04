@@ -202,25 +202,32 @@ function redraw()
   if glitch then
     glitch_text = 'glitching'
   else
-    glitch_text = 'k2 to glitch'
+    glitch_text = 'K2 to glitch'
   end
   screen.clear()
   screen.aa(1)
   screen.font_face(1)
   screen.font_size(8)
   screen.level(3)
-  screen.move(127, 60)
-  screen.text_right(play_text)
+
+  if alt_mode then
+    screen.level(15)
+    screen.move(60, 30)
+    screen.text_center('K3 to clear')
+  else
+    screen.move(127, 60)
+    screen.text_right(play_text)
+    
+    screen.move(0, 10)
+    screen.text(glitch_text)
   
-  screen.move(0, 10)
-  screen.text(glitch_text)
-
-  screen.level(10)
-  screen.move(0, 30)
-  screen.text('att: ' .. string.format('%.2f',att))
-
-  screen.move(0, 40)
-  screen.text('rel: ' .. string.format('%.2f',rel))
+    screen.level(10)
+    screen.move(0, 30)
+    screen.text('att: ' .. string.format('%.2f',att))
+  
+    screen.move(0, 40)
+    screen.text('rel: ' .. string.format('%.2f',rel))
+  end
 
   screen.fill()
   screen.update()
