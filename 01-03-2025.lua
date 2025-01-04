@@ -9,7 +9,7 @@ MusicUtil = require('musicutil')
 
 
 -- steps = {}
-steps = {1,0,0,0,4,0,0,0,8,6,3,4,0,0,0,0}
+steps = {8,6,3,4,0,0,0,0,1,0,0,0,4,0,0,0}
 scale = {77,74,72,70,67,65,62,60}
 counter = 0
 
