@@ -3,6 +3,9 @@
 --- crow sequencer
 --- probably need a grid
 --- K2 to toggle glitch mode
+---
+--- TODO - sync release time 
+--- with clock time
 
 g = grid.connect() -- if no argument is provided, defaults to port 1
 
@@ -24,8 +27,8 @@ rel = 1
 
 glitch = false
 held_note = 0
-glitch_rel = 0.08 -- glitch release time hard coded - boo
 glitch_syncs = {1/32, 1/16, 1/8, 1/4, 1/2, 1}
+glitch_rels = {0.01, 0.02, 0.04, 0.08, 0.16, 0.32}
 
 
 function init()
@@ -94,11 +97,14 @@ end
 function glitch_clock()
   while true do
     clock.sync(glitch_syncs[math.random(1,TAB.count(glitch_syncs))])
-    if counter % 6 == 0 then held_note = scale[math.random(1,8)] end -- randomizing the held note - maybe keep, maybe not?
     if playing and glitch then
       crow.output[2].dyn.attack = 0.01
-      crow.output[2].dyn.release = glitch_rel
-      crow.output[1].volts = (held_note - 60)/12
+      crow.output[2].dyn.release = glitch_rels[4] -- TODO - sync release time with clock time
+      if counter % 6 == 0 then -------------------------------------------- randomizing the held note - maybe keep, maybe not?
+        crow.output[1].volts = (scale[math.random(1,8)] - 60)/12
+      else
+        crow.output[1].volts = (held_note - 60)/12
+      end
       crow.output[2]()
     end
   end
