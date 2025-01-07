@@ -175,6 +175,7 @@ function key(n,z)
     if playing then
       playing = false
     else
+      note_off()
       playing = true
     end
     print('ALT MODE')
