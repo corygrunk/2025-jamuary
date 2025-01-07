@@ -8,7 +8,6 @@ s = require 'sequins'
 engine.name = 'PolySub'
 arp = s{60,64,67,71,72,71,67,64} -- STRANGER THINGS ARPEGGIO
 syncs = s{1/4,1/4,1/4,1/4,1/2,1/2}
-counter = 0
 
 hs = include('lib/halfsecond')
 
@@ -146,16 +145,10 @@ function seq_clock()
     -- clock.sleep(syncs[math.random(1,TAB.count(syncs))])
     clock.sleep(syncs())
     if playing then
-      counter = counter + 1
-
       local incoming_note = arp()
       arp:step(math.random(1,4))
       note_off()
       note_on(incoming_note)
-
-      if counter % 4 == 0 then
-
-      end
     end
   end
 end
