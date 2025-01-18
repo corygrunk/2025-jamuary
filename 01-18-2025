@@ -1,0 +1,327 @@
+-- Jamuary 2025 - 18
+--- Softcut looper w/
+--- 3 additional playheads
+--
+-- K2 rec/overdub
+-- K3 clear
+-- E1 level
+-- E3 pre-level
+-- ALT + E2 move loop start (hold K1 for alt)
+-- ALT + E3 move loop end (hold K1 for alt)
+
+Tab = require('tabutil')
+
+sc = softcut
+level = 1.0
+fade_time = 0.01
+pre_level = 1.0
+rate = 1.0
+
+default_loop_length = 15
+length = {default_loop_length, default_loop_length, default_loop_length,default_loop_length}
+start = {1,1,1,1}
+
+alt_mode = false
+
+rec_msg = ''
+recording = false
+overdub = false
+buffer_is_clear = true
+
+position = {0,0,0,0} -- initialize position to avoid nil
+
+function init()
+  sc.buffer_clear()
+  audio.level_cut(0.6)
+  audio.level_adc_cut(1)
+
+  for i = 1, 4 do  -- Changed to 4 voices
+    sc.level_input_cut(i, 1, 1.0)
+    sc.rec(i, 0)
+    sc.rec_level(i, 1)
+    sc.pre_level(i, 1)
+    sc.enable(i,1)
+    sc.buffer(i,1)
+    sc.level(i,1.0)
+    sc.loop(i,1)
+    sc.loop_start(i,start[i])
+    sc.loop_end(i,length[i])
+    sc.position(i,1)
+    sc.rate(i,rate)
+    sc.play(i,0)
+    sc.fade_time(i,fade_time)
+    sc.rate_slew_time(i,0)
+    sc.recpre_slew_time(i,0)
+    sc.phase_quant(i, 0.01)  -- Set phase tracking for all voices
+  end
+
+  sc.event_phase(update_positions)
+  sc.poll_start_phase()
+  softcut.event_render(on_render)
+
+  clock.run(redraw_clock)
+  screen_dirty = true
+end
+
+function update_positions(i,pos)
+  position[i] = pos  -- Only update the position for the voice that called this
+  -- Check if we're recording and have reached the end of the loop (only for voice 1)
+  if i == 1 and recording and position[1] >= (length[1] - 1) then
+    recording = false
+    sc.rec(1,0)
+    sc.loop_end(1,1 + length[1])
+    update_content(1,1,1 + length[1],128)
+    rec_msg = ''
+  end
+  screen_dirty = true
+end
+
+function start_addl_playheads()
+  -- Voice 2: Forward but starts halfway through
+  sc.rate(2, 0.25)
+  sc.level(2, 0.4)
+  length[2] = length[1]
+  sc.loop_start(2, start[1] + (length[1] * 0.5))  -- Start halfway
+  sc.loop_end(2, start[1] + length[1])
+  sc.position(2, start[1] + (length[1] * 0.5))
+  sc.play(2, 1)
+
+  -- Voice 3: Reverse playback
+  sc.rate(3, -1.0)
+  sc.level(3, 0.3)
+  length[3] = length[1]
+  sc.loop_start(3, start[1])
+  sc.loop_end(3, start[1] + length[1])
+  sc.position(3, start[1] + length[1])  -- Start at end for reverse
+  sc.play(3, 1)
+
+  -- Voice 4: Double speed, quarter length
+  sc.rate(4, 2.0)
+  sc.level(4, 0.35)
+  length[4] = length[1] * 0.25  -- Quarter of main loop
+  sc.loop_start(4, start[1])
+  sc.loop_end(4, start[1] + length[4])
+  sc.position(4, start[1])
+  sc.play(4, 1)
+  
+  screen_dirty = true
+end
+
+-- WAVEFORMS
+local interval = 0
+waveform_samples = {}
+scale = 30
+
+function on_render(ch, start, i, s)
+  waveform_samples = s
+  interval = i
+  screen_dirty = true
+end
+
+function update_content(buffer,winstart,winend,samples)
+  softcut.render_buffer(buffer, winstart, winend - winstart, 128)
+end
+--/ WAVEFORMS
+
+
+function key(n,z)
+  if n == 1 and z == 1 then
+    alt_mode = true
+    print('alt_mode')
+  elseif n == 1 and z == 0 then
+    alt_mode = false
+  elseif n == 2 and z == 1 then
+    if not recording and not overdub then
+      -- Start initial recording if nothing recorded yet
+      if buffer_is_clear then
+        recording = true
+        local current_pos = position[1]
+        sc.position(1, current_pos)
+        sc.rec(1,1)
+        sc.play(1,1)
+        rec_msg = 'rec'
+        buffer_is_clear = false
+      -- Start overdub if we already have something recorded
+      else
+        overdub = true
+        sc.rec(1,1)
+        rec_msg = 'dub'
+      end
+    -- Stop either recording or overdubbing
+    else
+      if recording then
+        recording = false
+        sc.rec(1,0)
+        length[1] = position[1] - start[1]  -- Calculate actual length
+        sc.loop_end(1,start[1] + length[1])  -- Set end point without extra 1
+        sc.loop_start(1,start[1])
+        sc.position(1,start[1])
+        update_content(1,start[1],start[1] + length[1],128)
+        start_addl_playheads()
+      elseif overdub then
+        overdub = false  -- Was true before
+        sc.rec(1,0)     -- Stop recording instead of starting it
+        rec_msg = ''
+      end
+      rec_msg = ''
+    end
+  elseif n == 3 and z == 1 then
+    -- clear
+    for i = 1, 4 do  -- Clear all 4 voices
+      start[i] = 1
+      length[i] = default_loop_length
+      position[i] = 0
+      sc.buffer_clear_channel(1)
+      sc.loop_start(i,start[i])
+      sc.loop_end(i,length[i])
+      sc.position(i,start[i])
+      sc.rec(i,0)
+      sc.play(i,0)
+    end
+    position = {0,0,0,0}  -- Reset all positions
+    recording = false
+    overdub = false
+    buffer_is_clear = true
+    rec_msg = ''
+    update_content(1,1,default_loop_length,128)
+  end
+  screen_dirty = true
+end
+
+function enc(n,d)
+  if n == 1 then
+    level = util.clamp(level+d/100,0,2)
+    softcut.level(1,level)
+  elseif n == 2 and alt_mode then
+    if not buffer_is_clear then
+      start[1] = util.clamp(start[1]+d/100,0.1,length[1])
+      if start[1] > length[1] then
+        start[1] = length[1]
+      end
+      sc.loop_start(1,start[1])
+      sc.loop_end(1,length[1] + 1)
+      update_content(1,start[1],length[1] + 1,128)
+    end
+  elseif n == 2 and not alt_mode then
+    print('Enc 2')
+    -- rate = util.clamp(rate+d/100,-4,4)
+    -- sc.rate(1,rate)
+  elseif n == 3 and alt_mode then
+    if not buffer_is_clear then
+      length[1] = util.clamp(length[1]+d/10,0.1,default_loop_length)
+      if length[1] < start[1] then
+        length[1] = start[1]
+      end
+      sc.loop_start(1,start[1])
+      sc.loop_end(1,length[1] + 1)
+      update_content(1,start[1],length[1] + 1,128)
+    end
+  elseif n == 3 and not alt_mode then
+    pre_level = util.clamp(pre_level+d/10,0,1)
+    sc.pre_level(1,pre_level)
+  end
+  screen_dirty = true
+end
+
+function redraw()
+  screen.clear()
+
+  if recording or overdub then
+    update_content(1,start[1],start[1] + length[1],128)
+end
+
+  -- waveform
+  screen.move(62,10)
+  screen.level(4)
+  local x_pos = 0
+  for i,s in ipairs(waveform_samples) do
+    local height = util.round(math.abs(s) * (scale*level))
+    screen.move(util.linlin(0,128,10,120,x_pos), 35 - height)
+    screen.line_rel(0, 2 * height)
+    screen.stroke()
+    x_pos = x_pos + 1
+  end
+
+  -- playheads
+  for i = 1, 4 do
+    -- Only show first playhead if still recording or buffer is clear
+    if buffer_is_clear or recording then
+      if i == 1 then 
+        screen.level(15)
+        screen.move(util.linlin(start[i], start[i] + length[i], 10, 120, position[i]),18)
+        screen.line_rel(0, 35)
+        screen.stroke()
+      end
+    -- Show all playheads after recording is complete
+    else
+      if i == 1 then 
+        screen.level(15)
+      else 
+        screen.level(2)
+      end
+      
+      local pos = position[i]
+      -- Calculate loop points for display
+      local loop_start = start[i]
+      local loop_end = start[i] + length[i]
+      
+      if i > 1 then
+        -- Wrap position within the shorter loop length
+        pos = ((pos - loop_start) % length[i]) + loop_start
+      end
+      
+      -- Map position to screen coordinates based on actual loop length
+      local screen_pos = util.linlin(loop_start, loop_end, 10, 120, pos)
+      screen.move(screen_pos, 18)
+      screen.line_rel(0, 35)
+      screen.stroke()
+    end
+  end
+
+  -- start marker
+  screen.level(15)
+  screen.move(10,30)
+  screen.line_rel(0, 10)
+  screen.stroke()
+
+  -- end marker
+  screen.level(15)
+  screen.move(120,30)
+  screen.line_rel(0, 10)
+  screen.stroke()
+
+  -- rate
+  -- if alt_mode then screen.level(6) else screen.level(15) end
+  -- screen.move(10,10)
+  -- screen.text(string.format('%.2f', rate or 0)) -- Avoid nil error
+
+  -- fade time
+  if alt_mode then screen.level(6) else screen.level(15) end
+  screen.move(120,10)
+  screen.text_right('Pre ' .. string.format('%.1f', pre_level or 0)) -- Avoid nil error
+
+  -- rec
+  screen.level(6)
+  screen.move(10,60)
+  screen.text(rec_msg)
+  
+  screen.update()
+end
+
+
+function redraw_clock()
+  while true do
+    clock.sleep(1/30)
+    if screen_dirty then
+      redraw()
+      screen_dirty = false
+    end
+  end
+end
+
+
+
+-- UTILITY TO RESTART SCRIPT FROM MAIDEN
+function r()
+  norns.script.load(norns.state.script)
+end
